@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Food Delivery Order Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+        h1, h2 { color: #333; }
+        form, .section { background: rgb(107, 214, 247); padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        label { display: block; margin-top: 10px; }
+        input, select, button { padding: 8px; margin-top: 5px; width: 100%; max-width: 300px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background: #f4f4f4; cursor: pointer; }
+        .message { margin-top: 10px; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .filters { display: flex; gap: 10px; flex-wrap: wrap; }
+        .assign-section { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Online Food Delivery Order Manager</h1>
+
+    <!-- Add Order Section -->
+    <div class="section">
+        <h2>Add Order</h2>
+        <form id="addOrderForm">
+            <label for="restaurantName">Restaurant Name:</label>
+            <input type="text" id="restaurantName" required>
+
+            <label for="itemCount">Item Count:</label>
+            <input type="number" id="itemCount" min="1" required>
+
+            <label for="isPaid">Is Paid:</label>
+            <select id="isPaid" required>
+                <option value="false">Unpaid</option>
+                <option value="true">Paid</option>
+            </select>
+
+            <label for="deliveryDistance">Delivery Distance (KM):</label>
+            <input type="number" id="deliveryDistance" min="0" step="0.1" required>
+
+            <button type="submit">Add Order</button>
+        </form>
+        <div id="addMessage" class="message" style="display: none;"></div>
+    </div>
+
+    <!-- View and Filter Orders Section -->
+    <div class="section">
+        <h2>View All Orders</h2>
+        <div class="filters">
+            <label>Filter by Status:</label>
+            <select id="statusFilter">
+                <option value="">All</option>
+                <option value="true">Paid</option>
+                <option value="false">Unpaid</option>
+            </select>
+
+            <label>Max Distance (KM):</label>
+            <input type="number" id="distanceFilter" min="0" step="0.1" placeholder="e.g., 5">
+
+            <button onclick="applyFilters()">Apply Filters</button>
+        </div>
+        <table id="ordersTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('orderId')">Order ID</th>
+                    <th onclick="sortTable('restaurantName')">Restaurant</th>
+                    <th onclick="sortTable('itemCount')">Item Count</th>
+                    <th onclick="sortTable('isPaid')">Paid</th>
+                    <th onclick="sortTable('deliveryDistance')">Distance (KM)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="ordersBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Assign Delivery Section -->
+    <div class="section">
+        <h2>Assign Delivery</h2>
+        <div class="assign-section">
+            <label for="maxDistance">Max Distance for Assignment (KM):</label>
+            <input type="number" id="maxDistance" min="0" step="0.1" required>
+            <button onclick="assignDelivery()">Assign Delivery</button>
+        </div>
+        <div id="assignMessage" class="message" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Utility to generate UUID
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Load orders from local storage
+        function loadOrders() {
+            return JSON.parse(localStorage.getItem('orders')) || [];
+        }
+
+        // Save orders to local storage
+        function saveOrders(orders) {
+            localStorage.setItem('orders', JSON.stringify(orders));
+        }
+
+        // Render orders table
+        function renderOrders(orders) {
+            const tbody = document.getElementById('ordersBody');
+            tbody.innerHTML = orders.map(order => `
+                <tr>
+                    <td>${order.orderId}</td>
+                    <td>${order.restaurantName}</td>
+                    <td>${order.itemCount}</td>
+                    <td>${order.isPaid ? 'Yes' : 'No'}</td>
+                    <td>${order.deliveryDistance}</td>
+                    <td>${order.isAssigned ? 'Assigned' : 'Unassigned'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Initial render
+        let allOrders = loadOrders();
+        renderOrders(allOrders);
+
+        // Add Order Form Submission
+        document.getElementById('addOrderForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const order = {
+                orderId: generateUUID(),
+                restaurantName: document.getElementById('restaurantName').value,
+                itemCount: parseInt(document.getElementById('itemCount').value),
+                isPaid: document.getElementById('isPaid').value === 'true',
+                deliveryDistance: parseFloat(document.getElementById('deliveryDistance').value),
+                isAssigned: false
+            };
+            allOrders.push(order);
+            saveOrders(allOrders);
+            renderOrders(allOrders);
+            e.target.reset();
+            showMessage('addMessage', 'Order added successfully!', 'success');
+        });
+
+        // Apply Filters
+        function applyFilters() {
+            const status = document.getElementById('statusFilter').value;
+            const maxDist = parseFloat(document.getElementById('distanceFilter').value) || Infinity;
+            const filtered = allOrders.filter(order => {
+                return (status === '' || order.isPaid.toString() === status) &&
+                       order.deliveryDistance <= maxDist;
+            });
+            renderOrders(filtered);
+        }
+
+        // Sort Table
+        function sortTable(key) {
+            allOrders.sort((a, b) => {
+                if (a[key] < b[key]) return -1;
+                if (a[key] > b[key]) return 1;
+                return 0;
+            });
+            renderOrders(allOrders);
+        }
+
+        // Assign Delivery
+        function assignDelivery() {
+            const maxDist = parseFloat(document.getElementById('maxDistance').value);
+            if (isNaN(maxDist) || maxDist < 0) {
+                showMessage('assignMessage', 'Please enter a valid max distance.', 'error');
+                return;
+            }
+            // Filter unpaid, unassigned orders within maxDist
+            const eligible = allOrders.filter(order => !order.isPaid && !order.isAssigned && order.deliveryDistance <= maxDist);
+            if (eligible.length === 0) {
+                showMessage('assignMessage', 'No order available.', 'error');
+                return;
+            }
+            // Find nearest (smallest distance)
+            const nearest = eligible.reduce((min, order) => order.deliveryDistance < min.deliveryDistance ? order : min);
+            nearest.isAssigned = true;
+            saveOrders(allOrders);
+            renderOrders(allOrders);
+            showMessage('assignMessage', `Assigned order ${nearest.orderId} (${nearest.restaurantName}) at ${nearest.deliveryDistance} KM.`, 'success');
+        }
+
+        // Show Message
+        function showMessage(elementId, text, type) {
+            const msg = document.getElementById(elementId);
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+            msg.style.display = 'block';
+            setTimeout(() => msg.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+</html>
